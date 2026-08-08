@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+src/
+
+# Virtual environment
+.venv/
+
+# uv
+# uv.lock is kept for reproducibility
+
+# IDE
+.vscode/
+.idea/
+
+# Data & cache
+data/vist/images/
+data/vist/sis/
+data/conceptnet_cache/
+checkpoints/
+*.pt
+*.pth
+
+# Results
+eval_results.json
