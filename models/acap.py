@@ -460,10 +460,16 @@ class ACap(nn.Module):
                         _, low_conf_idx = conf.sort()
                         keep_mask = torch.zeros(L, dtype=torch.bool, device=self.device)
                         keep_mask[low_conf_idx[:n_keep_masked]] = True
-                        fill = ~keep_mask
+                        # Only fill positions that are STILL MASKED — already-
+                        # committed tokens must stay fixed (standard mask-predict,
+                        # Ghazvininejad 2019). Without this guard, committed tokens
+                        # get overwritten every iteration, breaking the iterative
+                        # refinement and producing degenerate repetitive output.
+                        fill = (~keep_mask) & (tokens[b] == mask_id)
                         tokens[b, fill] = predicted[b, fill]
                     else:
-                        tokens[b] = predicted[b]
+                        remaining = tokens[b] == mask_id
+                        tokens[b, remaining] = predicted[b, remaining]
             else:
                 tokens = predicted
 

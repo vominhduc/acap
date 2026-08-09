@@ -142,8 +142,15 @@ class VinVLWrapper(nn.Module):
             ))
 
         def _sep_like(ref, ttype):
+            # Use the REAL [SEP] token embedding from the decoder, not zeros.
+            # The frozen decoder was pretrained with real [SEP] embeddings as
+            # segment boundaries; feeding zeros breaks the segment signal.
             n = 1
-            sep = torch.zeros(ref.size(0), n, self.embed_dim, device=ref.device)
+            sep_id = torch.full(
+                (ref.size(0), n), self.sep_token_id,
+                dtype=torch.long, device=ref.device
+            )
+            sep = self.embeddings(input_ids=sep_id)  # (B, 1, 768)
             return sep, torch.full((ref.size(0), n), ttype,
                                    dtype=torch.long, device=ref.device)
 

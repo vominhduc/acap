@@ -185,6 +185,9 @@ class MetricEvaluator:
                 input_ids=text_inputs["input_ids"],
                 attention_mask=text_inputs["attention_mask"],
             )
+            # transformers 5.x may return a model output object instead of a tensor
+            if not torch.is_tensor(text_features):
+                text_features = text_features.text_embeds if hasattr(text_features, "text_embeds") else text_features[0]
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 
         image_features_list = []
@@ -196,6 +199,8 @@ class MetricEvaluator:
                 feat = self._clip_model.get_image_features(
                     pixel_values=inputs["pixel_values"]
                 )
+                if not torch.is_tensor(feat):
+                    feat = feat.image_embeds if hasattr(feat, "image_embeds") else feat[0]
                 feat = feat / feat.norm(dim=-1, keepdim=True)
             image_features_list.append(feat.squeeze(0))
 

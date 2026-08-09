@@ -60,6 +60,13 @@ enroot start \
     --env CUDA_VISIBLE_DEVICES=0 \
     --env HF_TOKEN=${HF_TOKEN:-} \
     --env HF_HUB_OFFLINE=${HF_HUB_OFFLINE:-0} \
+    --env ACAP_PROJECT_DIR="${ACAP_PROJECT_DIR}" \
+    --env ACAP_SCRATCH="${ACAP_SCRATCH}" \
+    --env ACAP_PACKAGES="${ACAP_PACKAGES}" \
+    --env ACAP_DETECTRON2="${ACAP_DETECTRON2}" \
+    --env ACAP_UV_ARCHIVE="${ACAP_UV_ARCHIVE}" \
+    --env ACAP_PRECOMPUTED_DIR="${ACAP_PRECOMPUTED_DIR}" \
+    --env ACAP_VINVL_MODEL="${ACAP_VINVL_MODEL}" \
     ${ACAP_CONTAINER} \
     bash "${ACAP_PROJECT_DIR}/scripts/train_in_container.sh"
 
