@@ -154,7 +154,21 @@ class VinVLWrapper(nn.Module):
             return sep, torch.full((ref.size(0), n), ttype,
                                    dtype=torch.long, device=ref.device)
 
+        # Compute the word embedding scale to normalize other embeddings to
+        # match. The frozen decoder was pretrained with word embeddings at a
+        # specific norm (~5-6); concept embeddings (GNN output, norm ~26) and
+        # ROI embeddings (img_embedding output, norm ~139) are 5x and 28x
+        # larger, overwhelming the decoder's attention. Normalizing them to the
+        # word scale lets the decoder attend to ALL token types fairly.
+        if word_embeddings is not None:
+            word_norm = word_embeddings.norm(dim=-1).mean().item()
+        else:
+            word_norm = 5.0  # typical BERT word embedding norm
+
         if concept_embeddings is not None:
+            # Scale to match word embedding norm
+            c_norm = concept_embeddings.norm(dim=-1, keepdim=True).clamp(min=1e-6)
+            concept_embeddings = concept_embeddings * (word_norm / c_norm)
             if segments:
                 sep, stype = _sep_like(concept_embeddings, 0)
                 segments.append(sep); type_ids_list.append(stype)
@@ -165,9 +179,13 @@ class VinVLWrapper(nn.Module):
             ))
 
         if roi_features is not None:
-            # Project 1024->2054 then through pretrained img_embedding ->768.
+            # Project 2054->2054 (Identity when dims match) then through
+            # pretrained img_embedding ->768.
             roi_2054 = self.feat_proj(roi_features)
             roi_emb = self.img_embedding(roi_2054)  # (B, N_roi, 768)
+            # Scale to match word embedding norm (same reason as concepts)
+            r_norm = roi_emb.norm(dim=-1, keepdim=True).clamp(min=1e-6)
+            roi_emb = roi_emb * (word_norm / r_norm)
             if segments:
                 sep, stype = _sep_like(roi_emb, 1)
                 segments.append(sep); type_ids_list.append(stype)
