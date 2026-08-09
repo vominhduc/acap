@@ -54,11 +54,17 @@ class VinVLWrapper(nn.Module):
         self.img_embedding = nn.Linear(img_cfg_dim, self.embed_dim)
         self._load_img_embedding()
 
-        # Learn a projection from our 1024-dim torchvision ROI features into
-        # the 2054-dim space img_embedding was pretrained on. Trainable even
-        # when the backbone is frozen — this is the adapter that bridges the
-        # feature-space gap.
-        self.feat_proj = nn.Linear(roi_feature_dim, img_cfg_dim)
+        # Learn a projection from our ROI features into the 2054-dim space
+        # img_embedding was pretrained on. Only used when the feature dims
+        # DIFFER (e.g. torchvision 1024-dim). When roi_feature_dim == img_cfg_dim
+        # (the paper-faithful VinVL X152C4 case, both 2054), feed features
+        # DIRECTLY into img_embedding — a randomly-initialized feat_proj would
+        # corrupt the pretrained visual pathway, letting the frozen decoder
+        # fall back on the text shortcut and ignore vision entirely.
+        if roi_feature_dim != img_cfg_dim:
+            self.feat_proj = nn.Linear(roi_feature_dim, img_cfg_dim)
+        else:
+            self.feat_proj = nn.Identity()
 
         if freeze:
             for param in self.backbone.parameters():

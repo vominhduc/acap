@@ -1,17 +1,17 @@
 #!/bin/bash
 #SBATCH --job-name=acap_train
-#SBATCH --partition=${ACAP_PARTITION}
+#SBATCH --partition=002-partition-default
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 # Exclude nodes that can't reach the OST holding val data (set via
 # ACAP_EXCLUDE_NODES, e.g. "srdgx00129"). Empty by default.
-#SBATCH --exclude=${ACAP_EXCLUDE_NODES}
+#SBATCH --exclude=srdgx00129
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 # No wall-clock limit on partitions that allow it; override ACAP_LOG_DIR if
 # you want logs elsewhere.
-#SBATCH --output=${ACAP_LOG_DIR}/train_%j.log
-#SBATCH --error=${ACAP_LOG_DIR}/train_%j.err
+#SBATCH --output=/lustre/users/vmduc/Projects/acap/logs/train_%j.log
+#SBATCH --error=/lustre/users/vmduc/Projects/acap/logs/train_%j.err
 
 set -euo pipefail
 

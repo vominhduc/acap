@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=acap_eval
-#SBATCH --partition=${ACAP_DEBUG_PARTITION}
+#SBATCH --partition=002-partition-debug
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=00:30:00
-#SBATCH --output=${ACAP_LOG_DIR}/eval_%j.log
-#SBATCH --error=${ACAP_LOG_DIR}/eval_%j.err
+#SBATCH --output=/lustre/users/vmduc/Projects/acap/logs/eval_%j.log
+#SBATCH --error=/lustre/users/vmduc/Projects/acap/logs/eval_%j.err
 
 set -euo pipefail
 

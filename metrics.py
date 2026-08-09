@@ -18,8 +18,10 @@ class MetricEvaluator:
         if self._clip_model is None:
             from transformers import CLIPModel, CLIPProcessor
 
+            # transformers 5.x refuses torch.load on torch <2.6 (CVE check), so
+            # force safetensors loading — the CLIP repo ships model.safetensors.
             self._clip_model = CLIPModel.from_pretrained(
-                "openai/clip-vit-base-patch32"
+                "openai/clip-vit-base-patch32", use_safetensors=True
             ).to(self.device)
             self._clip_processor = CLIPProcessor.from_pretrained(
                 "openai/clip-vit-base-patch32"

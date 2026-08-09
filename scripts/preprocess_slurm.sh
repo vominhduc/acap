@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name=acap_preprocess
-#SBATCH --partition=${ACAP_PARTITION}
+#SBATCH --partition=002-partition-default
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 # No time limit — ConceptNet/WordNet 2-hop queries make this much slower
 # than the original (empty-cache) preprocessing.
-#SBATCH --output=${ACAP_LOG_DIR}/preprocess_%j.log
-#SBATCH --error=${ACAP_LOG_DIR}/preprocess_%j.err
+#SBATCH --output=/lustre/users/vmduc/Projects/acap/logs/preprocess_%j.log
+#SBATCH --error=/lustre/users/vmduc/Projects/acap/logs/preprocess_%j.err
 
 set -euo pipefail
 

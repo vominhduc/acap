@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name=acap_eval_full
-#SBATCH --partition=${ACAP_PARTITION}
+#SBATCH --partition=002-partition-default
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32G
 # Full-test-set generation is slow; leave the cap off on partitions that allow
 # it (override below if your cluster requires one).
-#SBATCH --output=${ACAP_LOG_DIR}/eval_full_%j.log
-#SBATCH --error=${ACAP_LOG_DIR}/eval_full_%j.err
+#SBATCH --output=/lustre/users/vmduc/Projects/acap/logs/eval_full_%j.log
+#SBATCH --error=/lustre/users/vmduc/Projects/acap/logs/eval_full_%j.err
 
 set -euo pipefail
 

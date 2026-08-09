@@ -45,9 +45,14 @@ class ModelConfig:
     # 2054-dim features in the decoder's native space, the frozen decoder can
     # apply its pretrained visual grounding — the paper-faithful setup.
     freeze_vinvl: bool = True
-    # 0.15 = paper's BERT-style MLM masking (now that features match, the model
-    # can genuinely use visual features to fill masked positions).
-    mlm_mask_prob: float = 0.15
+    # Paper-faithful: the paper feeds L×<mask> as pseudo-words at inference and
+    # trains with cross-entropy against the ground-truth caption. Training with
+    # ALL-mask (prob=1.0) forces the frozen decoder (a pretrained image
+    # captioner) to generate from concepts+ROI alone — exactly its pretraining
+    # task — with no text shortcut. With 15% masking the decoder can predict
+    # masked tokens from the 85% visible caption text and never learns to use
+    # vision, collapsing to mode tokens at all-mask inference.
+    mlm_mask_prob: float = 1.0
 
 
 @dataclass
