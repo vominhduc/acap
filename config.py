@@ -45,13 +45,13 @@ class ModelConfig:
     # 2054-dim features in the decoder's native space, the frozen decoder can
     # apply its pretrained visual grounding — the paper-faithful setup.
     freeze_vinvl: bool = True
-    # Masking ratio for MLM training. 15% (BERT default) lets the decoder predict
-    # masked tokens from the 85% visible text — a text shortcut that makes the
-    # concept/ROI features unnecessary, causing mode-collapse at all-mask
-    # inference. 50% forces the model to rely more on visual features while
-    # still providing text context for coherent generation. At inference,
-    # iterative mask-predict starts all-mask and progressively commits tokens.
-    mlm_mask_prob: float = 0.5
+    # Paper's BERT-style MLM masking (15%): select 15% of caption tokens, of
+    # which 80% -> <mask>, 10% -> random, 10% -> keep. The frozen decoder
+    # predicts masked tokens from the 85% visible text PLUS the concept/ROI
+    # visual features. At inference, iterative mask-predict decoding starts with
+    # [CLS, mask, ..., mask, SEP, PAD, ...] (matching the training token
+    # structure) and progressively commits the most confident tokens.
+    mlm_mask_prob: float = 0.15
 
 
 @dataclass

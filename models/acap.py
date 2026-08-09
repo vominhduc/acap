@@ -434,8 +434,21 @@ class ACap(nn.Module):
         L = self.word_seq_length
         mask_id = self.vinvl.mask_token_id
 
-        tokens = torch.full((batch_size, L), mask_id, dtype=torch.long,
+        # CRITICAL: match the training token structure. During training, the
+        # tokenizer produces [CLS, w1, ..., wL, SEP, PAD, PAD, ...] (max_length=L).
+        # _mlm_mask preserves CLS/SEP/PAD and only masks actual words. At
+        # inference, we must start with the SAME structure: [CLS, mask, ...,
+        # mask, SEP, PAD, ...] — NOT all-mask. Starting with all-mask (including
+        # CLS/SEP/PAD positions) is a train/inference mismatch that breaks the
+        # frozen decoder, which always expects CLS at position 0.
+        tokens = torch.full((batch_size, L), self.vinvl.pad_token_id, dtype=torch.long,
                             device=self.device)
+        tokens[:, 0] = self.vinvl.cls_token_id
+        tokens[:, 1:L-1] = mask_id  # mask all word positions
+        tokens[:, L-1] = self.vinvl.sep_token_id
+        # Track which positions are maskable (word positions only: 1..L-2)
+        maskable = torch.zeros(L, dtype=torch.bool, device=self.device)
+        maskable[1:L-1] = True
 
         for t in range(num_iter):
             word_embeds = self.vinvl.embeddings(input_ids=tokens)
@@ -448,30 +461,31 @@ class ACap(nn.Module):
             probs = torch.softmax(logits, dim=-1)
             confidence, predicted = probs.max(dim=-1)
 
-            n_unmask = int(L * (t + 1) / num_iter)
+            # Only unmask positions that are maskable (word positions 1..L-2)
+            n_unmask = int((L - 2) * (t + 1) / num_iter)
 
             if t < num_iter - 1:
                 for b in range(batch_size):
                     conf = confidence[b].clone()
+                    # Exclude already-committed and non-maskable positions
                     already = tokens[b] != mask_id
                     conf[already] = float('inf')
-                    n_keep_masked = L - n_unmask
+                    conf[~maskable] = float('inf')  # never touch CLS/SEP/PAD
+                    n_keep_masked = (L - 2) - n_unmask  # only count word positions
                     if n_keep_masked > 0:
                         _, low_conf_idx = conf.sort()
                         keep_mask = torch.zeros(L, dtype=torch.bool, device=self.device)
                         keep_mask[low_conf_idx[:n_keep_masked]] = True
-                        # Only fill positions that are STILL MASKED — already-
-                        # committed tokens must stay fixed (standard mask-predict,
-                        # Ghazvininejad 2019). Without this guard, committed tokens
-                        # get overwritten every iteration, breaking the iterative
-                        # refinement and producing degenerate repetitive output.
-                        fill = (~keep_mask) & (tokens[b] == mask_id)
+                        # Only fill positions that are STILL MASKED and maskable
+                        fill = (~keep_mask) & (tokens[b] == mask_id) & maskable
                         tokens[b, fill] = predicted[b, fill]
                     else:
-                        remaining = tokens[b] == mask_id
+                        remaining = (tokens[b] == mask_id) & maskable
                         tokens[b, remaining] = predicted[b, remaining]
             else:
-                tokens = predicted
+                # Final iteration: fill all remaining maskable positions
+                remaining = (tokens == mask_id) & maskable
+                tokens[remaining] = predicted[remaining]
 
         captions = []
         for ids in tokens:
