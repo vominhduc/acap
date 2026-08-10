@@ -154,6 +154,25 @@ def preprocess_split(
             context_feat = context_features[i]
             roi_feat = roi_features[i]
 
+            # Enhance context with input caption text embeddings. The visual
+            # context alone (mean of ROI features) doesn't capture the story's
+            # narrative direction. The 4 input captions contain the narrative
+            # arc ("family goes to carnival", "rides and games") that should
+            # guide which forecasted concepts are relevant. We BERT-encode the
+            # concatenated input captions and combine with the visual context.
+            input_captions = sample.get("input_captions", [])
+            if input_captions:
+                caption_text = " ".join(input_captions)
+                cap_inputs = bert_tokenizer(
+                    caption_text, return_tensors="pt", padding=True,
+                    truncation=True, max_length=128
+                ).to(device)
+                with torch.no_grad():
+                    cap_output = bert_model(**cap_inputs)
+                    cap_emb = cap_output.last_hidden_state[:, 0, :]  # (1, 768)
+                # Combine: 50% visual + 50% text context
+                context_feat = 0.5 * context_feat + 0.5 * cap_emb.squeeze(0)
+
             graph = kg_constructor.build(concepts_i, context_feat, str(device))
             build_temporal_edges(graph, concepts_i)
 
