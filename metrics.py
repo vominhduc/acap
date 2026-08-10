@@ -206,7 +206,22 @@ class MetricEvaluator:
 
         image_features = torch.stack(image_features_list)
 
-        sim_matrix = text_features @ image_features.T
+        # CLIP text and image features may have different hidden dims
+        # (text: 512, image: 768 for clip-vit-base-patch32). If they
+        # mismatch, project the smaller one to the larger via zero-pad.
+        t_dim = text_features.size(-1)
+        i_dim = image_features.size(-1)
+        if t_dim != i_dim:
+            if t_dim < i_dim:
+                pad = torch.zeros(text_features.size(0), i_dim - t_dim,
+                                  device=text_features.device)
+                text_features = torch.cat([text_features, pad], dim=-1)
+            else:
+                pad = torch.zeros(image_features.size(0), t_dim - i_dim,
+                                  device=image_features.device)
+                image_features = torch.cat([image_features, pad], dim=-1)
+
+        sim_matrix = text_features @ image_features.T  # (n, n)
 
         n = len(generated)
         ranks = []
