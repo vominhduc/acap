@@ -173,6 +173,34 @@ def preprocess_split(
                 # Combine: 50% visual + 50% text context
                 context_feat = 0.5 * context_feat + 0.5 * cap_emb.squeeze(0)
 
+            # Extract narrative keywords from input captions and add them as
+            # additional detected concepts. The paper uses clarifai (returns
+            # abstract concepts like "carnival", "fun", "game"), but our VG
+            # detector only returns physical objects ("wall", "tree"). The
+            # input captions contain narrative keywords ("carnival", "rides",
+            # "games") that often appear in the target caption — adding these
+            # as detected concept seeds gives the knowledge graph narrative-
+            # relevant starting points for ConceptNet expansion.
+            import re
+            STOPWORDS = set("the a an and or but in on at to for of is are was "
+                           "were be been being have has had do does did will would "
+                           "could should may might can this that these those it "
+                           "its their there here some all any no not as with from "
+                           "by we us our you your he she they them his her my mine "
+                           "so if then than too very just also up out off down "
+                           "into over under again once more most only own same "
+                           "such each both few further having about above below "
+                           "during after before between through during".split())
+            caption_concepts = set()
+            for cap in sample.get("input_captions", []):
+                words = re.findall(r'[a-z]+', cap.lower())
+                for w in words:
+                    if len(w) > 2 and w not in STOPWORDS:
+                        caption_concepts.add(w)
+            # Add caption keywords as detected concepts (append to last image's concepts)
+            if caption_concepts and concepts_i:
+                concepts_i[-1].extend(list(caption_concepts)[:15])
+
             graph = kg_constructor.build(concepts_i, context_feat, str(device))
             build_temporal_edges(graph, concepts_i)
 

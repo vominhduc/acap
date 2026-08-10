@@ -26,7 +26,22 @@ echo "=============================================="
 
 cd ${PROJECT_DIR}
 
+echo "=== Step 1: Install CUDA-compatible PyTorch ==="
+python3 -c "import torch; print(f'torch {torch.__version__}'); assert torch.cuda.is_available()" 2>&1 || {
+    echo "Installing CUDA 12.x PyTorch..."
+    uv pip install --target ${EXTRA_PACKAGES} --python /usr/bin/python3 \
+        torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121 2>&1
+}
 python3 -c "import torch; print(f'torch {torch.__version__}, CUDA {torch.cuda.is_available()}')"
+python3 -c "import torchvision; print(f'torchvision {torchvision.__version__}')"
+
+echo "=== Step 2: Install Missing Packages ==="
+python3 -c "from pycocoevalcap.bleu.bleu import Bleu; print('pycocoevalcap OK')" 2>&1 || {
+    uv pip install --target ${EXTRA_PACKAGES} --python /usr/bin/python3 --no-deps pycocoevalcap pycocotools 2>&1
+}
+python3 -c "import requests; print(f'requests {requests.__version__}')" 2>&1 || {
+    uv pip install --target ${EXTRA_PACKAGES} --python /usr/bin/python3 requests urllib3 2>&1
+}
 
 echo "=== Running Preprocessing ==="
 # Write precomputed pkls to ACAP_PRECOMPUTED_DIR (a large-file-friendly scratch

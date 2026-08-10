@@ -47,7 +47,13 @@ enroot start \
     --mount "${ACAP_HF_CACHE}:/root/.cache/huggingface:none:bind" \
     --env CUDA_VISIBLE_DEVICES=0 \
     --env SPLITS="${SPLITS:-train val test}" \
+    --env ACAP_PROJECT_DIR="${ACAP_PROJECT_DIR}" \
+    --env ACAP_SCRATCH="${ACAP_SCRATCH}" \
+    --env ACAP_PACKAGES="${ACAP_PACKAGES}" \
+    --env ACAP_DETECTRON2="${ACAP_DETECTRON2}" \
+    --env ACAP_UV_ARCHIVE="${ACAP_UV_ARCHIVE}" \
     --env ACAP_PRECOMPUTED_DIR="${ACAP_PRECOMPUTED_DIR:-${ACAP_SCRATCH}/acap_data}" \
+    --env ACAP_VINVL_MODEL="${ACAP_VINVL_MODEL}" \
     ${ACAP_CONTAINER} \
     bash "${ACAP_PROJECT_DIR}/scripts/preprocess_in_container.sh"
 
