@@ -466,10 +466,10 @@ class ACap(nn.Module):
             # "to to", "blue blue sky blue").
             rep_penalty = 1.5
             for b in range(batch_size):
-                committed = tokens[b, maskable]
-                committed = committed[committed != mask_id]
+                committed = tokens[b, maskable & (tokens[b] != mask_id)]
                 if len(committed) > 0:
-                    probs[b, maskable, committed] /= rep_penalty
+                    for tok_id in committed.unique():
+                        probs[b, maskable, tok_id.item()] /= rep_penalty
             confidence, predicted = probs.max(dim=-1)
 
             # Only unmask positions that are maskable (word positions 1..L-2)
