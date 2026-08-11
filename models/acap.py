@@ -287,7 +287,6 @@ class ACap(nn.Module):
             return masked, labels
 
         selected = (torch.rand_like(input_ids, dtype=torch.float) < prob) & ~special
-        labels[~selected] = -100
 
         masked = input_ids.clone()
         # 80% of selected -> ọc; 10% -> random token; 10% -> keep original.
@@ -301,6 +300,12 @@ class ACap(nn.Module):
         masked[to_rand] = torch.randint(
             0, vocab, (int(to_rand.sum()),), device=input_ids.device
         )
+        # KEY: compute loss on ALL non-special tokens, not just the 15% masked
+        # ones. The paper says "cross entropy between the generated and the
+        # ground-truth captions" — every token position contributes to the
+        # gradient, giving the GNN 100% signal (not just 15%) to learn
+        # concept embeddings that help predict the full caption.
+        labels[special] = -100
         return masked, labels
 
     def _decode(
