@@ -422,7 +422,7 @@ class ACap(nn.Module):
         roi_features: torch.Tensor,
         batch_size: int,
         max_length: int,
-        num_iter: int = 10,
+        num_iter: int = 20,
     ) -> List[str]:
         # Iterative Mask-Predict decoding (Ghazvininejad et al., 2019).
         # The decoder is a bidirectional MLM, not autoregressive. Single-pass
@@ -459,6 +459,17 @@ class ACap(nn.Module):
             )
             logits = self.vinvl.lm_head(seq_out[:, :L, :])
             probs = torch.softmax(logits, dim=-1)
+            confidence, predicted = probs.max(dim=-1)
+
+            # Repetition penalty: reduce probability of tokens already used
+            # in this caption to avoid repetitive output ("night night",
+            # "to to", "blue blue sky blue").
+            rep_penalty = 1.5
+            for b in range(batch_size):
+                committed = tokens[b, maskable]
+                committed = committed[committed != mask_id]
+                if len(committed) > 0:
+                    probs[b, maskable, committed] /= rep_penalty
             confidence, predicted = probs.max(dim=-1)
 
             # Only unmask positions that are maskable (word positions 1..L-2)
