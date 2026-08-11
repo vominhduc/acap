@@ -185,26 +185,39 @@ class MetricEvaluator:
                 input_ids=text_inputs["input_ids"],
                 attention_mask=text_inputs["attention_mask"],
             )
-            # transformers 5.x may return a model output object instead of a tensor
             if not torch.is_tensor(text_features):
                 text_features = text_features.text_embeds if hasattr(text_features, "text_embeds") else text_features[0]
+            while text_features.dim() > 2:
+                text_features = text_features.squeeze(0)
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 
+        # Process images one at a time (batched CLIP processor with PIL
+        # images hangs in some transformers versions). Add progress logging.
+        import logging
+        logger = logging.getLogger(__name__)
         image_features_list = []
-        for image in oracle_images:
-            inputs = self._clip_processor(
-                images=image, return_tensors="pt"
-            ).to(self.device)
-            with torch.no_grad():
-                feat = self._clip_model.get_image_features(
-                    pixel_values=inputs["pixel_values"]
-                )
-                if not torch.is_tensor(feat):
-                    feat = feat.image_embeds if hasattr(feat, "image_embeds") else feat[0]
-                feat = feat / feat.norm(dim=-1, keepdim=True)
-            image_features_list.append(feat.squeeze(0))
+        for idx, image in enumerate(oracle_images):
+            if idx % 500 == 0:
+                logger.info(f"  Retrieval: processing image {idx}/{len(oracle_images)}")
+            try:
+                inputs = self._clip_processor(
+                    images=image, return_tensors="pt"
+                ).to(self.device)
+                with torch.no_grad():
+                    feat = self._clip_model.get_image_features(
+                        pixel_values=inputs["pixel_values"]
+                    )
+                    if not torch.is_tensor(feat):
+                        feat = feat.image_embeds if hasattr(feat, "image_embeds") else feat[0]
+                    feat = feat / feat.norm(dim=-1, keepdim=True)
+                    while feat.dim() > 2:
+                        feat = feat.squeeze(0)
+                image_features_list.append(feat.squeeze(0).cpu())
+            except Exception as e:
+                logger.warning(f"  Retrieval: failed on image {idx}: {e}")
+                image_features_list.append(torch.zeros(1, text_features.size(-1)))
 
-        image_features = torch.stack(image_features_list)
+        image_features = torch.stack(image_features_list, dim=0)  # (n, dim)
 
         # CLIP text and image features may have different hidden dims
         # (text: 512, image: 768 for clip-vit-base-patch32). If they
