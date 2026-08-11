@@ -464,7 +464,7 @@ class ACap(nn.Module):
             # Repetition penalty: reduce probability of tokens already used
             # in this caption to avoid repetitive output ("night night",
             # "to to", "blue blue sky blue").
-            rep_penalty = 1.5
+            rep_penalty = 2.0
             for b in range(batch_size):
                 committed = tokens[b, maskable & (tokens[b] != mask_id)]
                 if len(committed) > 0:

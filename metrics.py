@@ -276,13 +276,12 @@ class MetricEvaluator:
                 logger.warning(f"RefCLIPScore failed: {e}")
                 metrics["RefCLIPScore"] = 0.0
 
-            try:
-                retrieval = self.compute_retrieval(generated, oracle_images)
-                metrics.update(retrieval)
-            except Exception as e:
-                logger.warning(f"Retrieval failed: {e}")
-                for k in (1, 5, 10):
-                    metrics[f"R@{k}"] = 0.0
+            # Retrieval (R@1/5/10) is disabled — CLIP get_image_features
+            # hangs in transformers 5.x + torch 2.5.1. The CLIPScore and
+            # RefCLIPScore work fine (they use model(**inputs) not
+            # get_image_features). Enable once torch >=2.6 is available.
+            for k in (1, 5, 10):
+                metrics[f"R@{k}"] = 0.0
         else:
             metrics["CLIPScore"] = 0.0
             metrics["RefCLIPScore"] = 0.0
