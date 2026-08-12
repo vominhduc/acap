@@ -424,79 +424,36 @@ class ACap(nn.Module):
         max_length: int,
         num_iter: int = 20,
     ) -> List[str]:
-        # Iterative Mask-Predict decoding (Ghazvininejad et al., 2019).
-        # The decoder is a bidirectional MLM, not autoregressive. Single-pass
-        # all-mask argmax is crude (every position independent, no refinement).
-        # Instead: predict all, keep the most confident, re-mask the rest, repeat.
-        # Over num_iter iterations the caption is progressively refined, giving
-        # the model more context each iteration (like the partial masking in
-        # training with mlm_mask_prob < 1.0).
+        # The paper says: "We do not feed wi to the network during inference
+        # time, but instead, create L × <mask> as pseudo words." This describes
+        # a SINGLE forward pass: all word positions are <mask>, the model
+        # predicts all tokens at once from concepts+ROI, then argmax → decode.
+        # No iterative refinement, no repetition penalty — just one pass.
         L = self.word_seq_length
         mask_id = self.vinvl.mask_token_id
 
-        # CRITICAL: match the training token structure. During training, the
-        # tokenizer produces [CLS, w1, ..., wL, SEP, PAD, PAD, ...] (max_length=L).
-        # _mlm_mask preserves CLS/SEP/PAD and only masks actual words. At
-        # inference, we must start with the SAME structure: [CLS, mask, ...,
-        # mask, SEP, PAD, ...] — NOT all-mask. Starting with all-mask (including
-        # CLS/SEP/PAD positions) is a train/inference mismatch that breaks the
-        # frozen decoder, which always expects CLS at position 0.
+        # Match training token structure: [CLS, mask, ..., mask, SEP, PAD, ...]
         tokens = torch.full((batch_size, L), self.vinvl.pad_token_id, dtype=torch.long,
                             device=self.device)
         tokens[:, 0] = self.vinvl.cls_token_id
-        tokens[:, 1:L-1] = mask_id  # mask all word positions
+        tokens[:, 1:L-1] = mask_id
         tokens[:, L-1] = self.vinvl.sep_token_id
-        # Track which positions are maskable (word positions only: 1..L-2)
+
+        # Single forward pass — the paper's inference method
+        word_embeds = self.vinvl.embeddings(input_ids=tokens)
+        seq_out, _ = self.vinvl(
+            word_embeddings=word_embeds,
+            concept_embeddings=concept_embeds,
+            roi_features=roi_features,
+        )
+        logits = self.vinvl.lm_head(seq_out[:, :L, :])
+        predicted = logits.argmax(dim=-1)
+
+        # Fill in only the maskable positions (word positions 1..L-2)
         maskable = torch.zeros(L, dtype=torch.bool, device=self.device)
         maskable[1:L-1] = True
-
-        for t in range(num_iter):
-            word_embeds = self.vinvl.embeddings(input_ids=tokens)
-            seq_out, _ = self.vinvl(
-                word_embeddings=word_embeds,
-                concept_embeddings=concept_embeds,
-                roi_features=roi_features,
-            )
-            logits = self.vinvl.lm_head(seq_out[:, :L, :])
-            probs = torch.softmax(logits, dim=-1)
-            confidence, predicted = probs.max(dim=-1)
-
-            # Repetition penalty: reduce probability of tokens already used
-            # in this caption to avoid repetitive output ("night night",
-            # "to to", "blue blue sky blue").
-            rep_penalty = 2.0
-            for b in range(batch_size):
-                committed = tokens[b, maskable & (tokens[b] != mask_id)]
-                if len(committed) > 0:
-                    for tok_id in committed.unique():
-                        probs[b, maskable, tok_id.item()] /= rep_penalty
-            confidence, predicted = probs.max(dim=-1)
-
-            # Only unmask positions that are maskable (word positions 1..L-2)
-            n_unmask = int((L - 2) * (t + 1) / num_iter)
-
-            if t < num_iter - 1:
-                for b in range(batch_size):
-                    conf = confidence[b].clone()
-                    # Exclude already-committed and non-maskable positions
-                    already = tokens[b] != mask_id
-                    conf[already] = float('inf')
-                    conf[~maskable] = float('inf')  # never touch CLS/SEP/PAD
-                    n_keep_masked = (L - 2) - n_unmask  # only count word positions
-                    if n_keep_masked > 0:
-                        _, low_conf_idx = conf.sort()
-                        keep_mask = torch.zeros(L, dtype=torch.bool, device=self.device)
-                        keep_mask[low_conf_idx[:n_keep_masked]] = True
-                        # Only fill positions that are STILL MASKED and maskable
-                        fill = (~keep_mask) & (tokens[b] == mask_id) & maskable
-                        tokens[b, fill] = predicted[b, fill]
-                    else:
-                        remaining = (tokens[b] == mask_id) & maskable
-                        tokens[b, remaining] = predicted[b, remaining]
-            else:
-                # Final iteration: fill all remaining maskable positions
-                remaining = (tokens == mask_id) & maskable
-                tokens[remaining] = predicted[remaining]
+        mask_positions = maskable & (tokens == mask_id)
+        tokens[mask_positions] = predicted[mask_positions]
 
         captions = []
         for ids in tokens:
